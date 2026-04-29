@@ -3,20 +3,42 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.security.Key;
+import java.util.Base64;
 import java.util.Date;
 import java.util.function.Function;
 
 @Component
 public class JwtUtil {
 
-    // A secure random key generated for signing our tokens
-    private static final Key SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
     // Token lasts for 24 hours
     private static final long JWT_EXPIRATION = 1000 * 60 * 60 * 24;
+
+    // Read JWT secret from properties (base64). If not provided, generate a random key at startup.
+    @Value("${jwt.secret:}")
+    private String jwtSecretBase64;
+
+    private Key SECRET_KEY;
+
+    @PostConstruct
+    public void init() {
+        try {
+            if (jwtSecretBase64 != null && !jwtSecretBase64.isBlank()) {
+                byte[] decoded = Base64.getDecoder().decode(jwtSecretBase64);
+                SECRET_KEY = Keys.hmacShaKeyFor(decoded);
+            } else {
+                SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+            }
+        } catch (Exception e) {
+            // fallback to generated key if anything goes wrong
+            SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+        }
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
